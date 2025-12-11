@@ -2,202 +2,150 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>KRATOS // ENTERPRISE GRID</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/18.6.4/tween.umd.js"></script>
 
     <style>
         /* =========================================
-           SECTION 1: CORE STYLES & CRT EFFECTS
+           CORE VISUALS
            ========================================= */
         :root {
             --primary: #00ffcc;
-            --secondary: #005544;
             --bg: #050505;
-            --glass: rgba(0, 20, 10, 0.65);
-            --border: 1px solid rgba(0, 255, 204, 0.3);
-            --shadow: 0 0 15px rgba(0, 255, 204, 0.1);
+            --glass: rgba(0, 15, 10, 0.85); /* Darker for mobile readability */
+            --border: 1px solid rgba(0, 255, 204, 0.4);
         }
 
         body {
             margin: 0;
-            overflow: hidden;
+            overflow: hidden; /* Desktop: Hidden */
             background: #000;
             font-family: 'Consolas', 'Monaco', monospace;
             color: var(--primary);
-            user-select: none;
+            -webkit-tap-highlight-color: transparent; /* Remove mobile tap gray box */
         }
 
-        /* The 3D Canvas Layer */
-        #world {
-            position: fixed;
-            top: 0; left: 0;
-            width: 100vw; height: 100vh;
-            z-index: 0;
+        #world, #scanlines, #vignette {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
         }
-
-        /* CRT Scanline Overlay */
-        #scanlines {
-            position: fixed;
-            top: 0; left: 0;
-            width: 100vw; height: 100vh;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%);
-            background-size: 100% 4px;
-            z-index: 999;
-            pointer-events: none;
-            opacity: 0.7;
+        #world { z-index: 0; }
+        #scanlines { 
+            z-index: 999; pointer-events: none; 
+            background: linear-gradient(rgba(0,0,0,0) 50%, rgba(0,0,0,0.1) 50%); 
+            background-size: 100% 4px; opacity: 0.6; 
         }
-
-        /* Vignette & CRT Curve */
-        #vignette {
-            position: fixed;
-            top: 0; left: 0;
-            width: 100vw; height: 100vh;
-            background: radial-gradient(circle, transparent 60%, black 100%);
-            z-index: 998;
-            pointer-events: none;
+        #vignette { 
+            z-index: 998; pointer-events: none; 
+            background: radial-gradient(circle, transparent 50%, black 120%); 
         }
 
         /* =========================================
-           SECTION 2: BOOT SEQUENCE
+           BOOT SCREEN
            ========================================= */
         #boot-screen {
-            position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            background: #000;
-            z-index: 2000;
-            padding: 40px;
-            box-sizing: border-box;
-            font-size: 14px;
-            color: var(--primary);
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-start;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; z-index: 2000; padding: 20px;
+            display: flex; flex-direction: column; justify-content: center;
         }
-
-        .boot-line {
-            opacity: 0;
-            margin-bottom: 5px;
-        }
+        .boot-line { font-size: 14px; margin-bottom: 5px; opacity: 0; color: var(--primary); }
 
         /* =========================================
-           SECTION 3: WINDOW MANAGER UI
+           UI LAYER & WINDOWS
            ========================================= */
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 100;
+            pointer-events: none; /* Let clicks pass through to 3D BG if needed */
+        }
+
         .window {
-            position: absolute;
+            position: absolute; /* Default: Floating */
             background: var(--glass);
             border: var(--border);
-            backdrop-filter: blur(10px);
-            box-shadow: var(--shadow);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            transition: opacity 0.2s, transform 0.2s;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 0 20px rgba(0, 255, 204, 0.1);
+            display: flex; flex-direction: column;
+            pointer-events: auto; /* Enable clicks on windows */
             border-radius: 4px;
+            transition: transform 0.2s, box-shadow 0.2s;
         }
 
         .window-header {
-            background: rgba(0, 50, 40, 0.8);
-            padding: 8px 10px;
-            font-size: 12px;
-            font-weight: bold;
-            letter-spacing: 1px;
-            cursor: grab;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            background: rgba(0, 50, 40, 0.9);
+            padding: 10px;
+            font-size: 11px; letter-spacing: 1px; font-weight: bold;
+            display: flex; justify-content: space-between; align-items: center;
             border-bottom: var(--border);
+            cursor: grab; /* Desktop hint */
         }
-
-        .window-header:active { cursor: grabbing; }
-
-        .controls span {
-            display: inline-block;
-            width: 10px; height: 10px;
-            background: #333;
-            border-radius: 50%;
-            margin-left: 5px;
-            cursor: pointer;
-        }
-        .controls .close { background: #ff4444; }
-        .controls .min { background: #ffcc00; }
-
-        .window-content {
-            padding: 15px;
-            flex-grow: 1;
-            overflow-y: auto;
-            color: #ccffee;
-            font-size: 12px;
-        }
-
-        /* Specific Window Layouts */
-        #win-miner { top: 100px; left: 50px; width: 400px; height: 500px; z-index: 10; }
-        #win-stats { top: 100px; right: 50px; width: 350px; height: 300px; z-index: 10; }
-        #win-log { bottom: 50px; left: 50px; width: 600px; height: 200px; z-index: 9; }
         
-        /* Interactive Elements */
+        .controls span {
+            display: inline-block; width: 8px; height: 8px; 
+            border-radius: 50%; margin-left: 5px; 
+        }
+        .close { background: #ff4444; } .min { background: #ffcc00; }
+
+        .window-content { padding: 15px; color: #ccffee; font-size: 12px; }
+
+        /* DESKTOP DEFAULT POSITIONS */
+        #win-miner { top: 15%; left: 10%; width: 380px; }
+        #win-stats { top: 15%; right: 10%; width: 320px; }
+        #win-log { bottom: 5%; left: 10%; width: 500px; height: 150px; }
+
+        /* COMPONENTS */
         button.cyber-btn {
-            background: rgba(0, 0, 0, 0.5);
+            background: rgba(0, 20, 10, 0.5);
             border: 1px solid var(--primary);
             color: var(--primary);
-            padding: 10px 20px;
-            width: 100%;
-            cursor: pointer;
-            font-family: inherit;
-            font-weight: bold;
+            padding: 15px; width: 100%;
+            font-family: inherit; font-weight: bold; font-size: 14px;
+            cursor: pointer; transition: 0.2s; margin-top: 10px;
             text-transform: uppercase;
-            transition: 0.2s;
-            margin-top: 10px;
         }
-        button.cyber-btn:hover {
-            background: var(--primary);
-            color: #000;
-            box-shadow: 0 0 15px var(--primary);
-        }
-        button.cyber-btn:disabled {
-            border-color: #555;
-            color: #555;
-            background: transparent;
-            cursor: not-allowed;
-            box-shadow: none;
-        }
+        button.cyber-btn:active { background: var(--primary); color: #000; }
+        button.cyber-btn:disabled { border-color: #555; color: #555; }
 
-        /* Canvas Charts */
-        canvas.chart {
-            width: 100%;
-            height: 100px;
-            background: rgba(0,0,0,0.3);
-            border: 1px solid #004433;
-            margin-top: 10px;
-        }
+        .progress-container { width: 100%; height: 6px; background: #111; margin-top: 10px; border: 1px solid #333; }
+        .progress-bar { width: 0%; height: 100%; background: var(--primary); box-shadow: 0 0 10px var(--primary); transition: width 0.1s; }
 
-        /* Progress Bars */
-        .progress-container {
-            width: 100%; height: 6px;
-            background: #111;
-            margin-top: 5px;
-            border: 1px solid #333;
-        }
-        .progress-bar {
-            width: 0%; height: 100%;
-            background: var(--primary);
-            box-shadow: 0 0 10px var(--primary);
-            transition: width 0.1s;
-        }
+        canvas.chart { width: 100%; height: 80px; background: rgba(0,0,0,0.3); border: 1px solid #004433; margin-top: 5px; }
 
-        /* Status Indicators */
-        .status-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 5px;
-            border-bottom: 1px dashed #004433;
-            padding-bottom: 5px;
-        }
-        .blink { animation: blinker 1s linear infinite; }
-        @keyframes blinker { 50% { opacity: 0; } }
+        /* =========================================
+           RESPONSIVE MOBILE OVERRIDES
+           ========================================= */
+        @media (max-width: 768px) {
+            body { overflow-y: auto; /* Allow scroll on mobile */ }
+            
+            #ui-layer {
+                position: relative; /* Switch to flow layout */
+                height: auto;
+                padding: 10px;
+                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+                gap: 15px; /* Space between windows */
+                padding-bottom: 50px;
+            }
 
+            .window {
+                position: relative !important; /* Force stack */
+                top: auto !important; left: auto !important; right: auto !important; bottom: auto !important;
+                width: 100% !important; /* Full width */
+                height: auto !important;
+                margin-bottom: 0;
+            }
+
+            .window-header { cursor: default; } /* No dragging on mobile */
+            
+            #win-miner { order: 1; } /* Order of appearance */
+            #win-stats { order: 2; }
+            #win-log { order: 3; height: 200px !important; }
+            
+            h1#hash-big { font-size: 42px !important; } /* Bigger text for touch */
+            .boot-line { font-size: 12px; }
+        }
     </style>
 </head>
 <body>
@@ -211,457 +159,344 @@
         
         <div id="win-miner" class="window">
             <div class="window-header">
-                <span>KRATOS_MINER_v4.exe</span>
+                <span>KRATOS_NODE_v4.2.exe</span>
                 <div class="controls"><span class="min"></span><span class="close"></span></div>
             </div>
             <div class="window-content">
-                <div class="status-row">
-                    <span>CONNECTION STATUS</span>
-                    <span id="conn-status" style="color: red;">DISCONNECTED</span>
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                    <span>STATUS</span><span id="conn-status" style="color:red">OFFLINE</span>
                 </div>
-                <div class="status-row">
-                    <span>GPU DRIVER</span>
-                    <span id="gpu-status">WAITING...</span>
+                <div style="display:flex; justify-content:space-between; margin-bottom:15px;">
+                    <span>GPU</span><span id="gpu-status">DETECTING...</span>
                 </div>
-                
-                <br>
-                <div style="text-align: center; border: 1px solid #004433; padding: 20px; margin-bottom: 10px;">
-                    <h1 style="margin: 0; font-size: 32px;" id="hash-big">0.00</h1>
-                    <small>MH/s</small>
+
+                <div style="text-align: center; border: 1px solid #004433; padding: 20px; background: rgba(0,0,0,0.3);">
+                    <h1 id="hash-big" style="margin:0; font-size: 32px; text-shadow: 0 0 10px var(--primary);">0.00</h1>
+                    <small style="color:#88ffcc; letter-spacing: 2px;">MH/s</small>
                 </div>
 
                 <div class="progress-container">
                     <div id="progress-bar" class="progress-bar"></div>
                 </div>
-                <div style="font-size: 10px; text-align: right; margin-top: 2px;" id="batch-progress">BATCH: IDLE</div>
+                <div style="text-align: right; font-size: 10px; margin-top: 4px; color: #888;" id="batch-id">BATCH: WAITING</div>
 
-                <br>
-                <button id="btn-init" class="cyber-btn" onclick="startSystem()">INITIALIZE UPLINK</button>
-                <button id="btn-req" class="cyber-btn" disabled onclick="requestBatch()">REQUEST BATCH</button>
+                <button id="btn-init" class="cyber-btn" onclick="initSystem()">CONNECT TO GRID</button>
+                <button id="btn-req" class="cyber-btn" disabled onclick="requestBatch()">START MINING</button>
             </div>
         </div>
 
         <div id="win-stats" class="window">
-            <div class="window-header">
-                <span>TELEMETRY_MONITOR</span>
-                <div class="controls"><span class="min"></span><span class="close"></span></div>
-            </div>
+            <div class="window-header"><span>SYSTEM_TELEMETRY</span><div class="controls"><span class="min"></span></div></div>
             <div class="window-content">
-                <div>CORE LOAD:</div>
+                <div style="font-size:10px; color:#aaa; margin-bottom:2px;">GPU LOAD</div>
                 <canvas id="chart-load" class="chart"></canvas>
-                <br><br>
-                <div>MEMORY BUFFER:</div>
+                <div style="font-size:10px; color:#aaa; margin-top:10px; margin-bottom:2px;">MEMORY USAGE</div>
                 <canvas id="chart-mem" class="chart"></canvas>
-                <div style="margin-top: 10px; font-size: 10px; color: #aaa;">
-                    > UPLINK: STABLE<br>
-                    > LATENCY: 24ms<br>
-                    > PEERS: 1,402 ACTIVE
-                </div>
             </div>
         </div>
 
         <div id="win-log" class="window">
-            <div class="window-header">
-                <span>TERMINAL_OUTPUT</span>
-                <div class="controls"><span class="min"></span><span class="close"></span></div>
-            </div>
-            <div class="window-content" id="log-feed" style="font-family: 'Courier New'; font-size: 11px; line-height: 1.4;">
-                <span style="color: #008800;">> SYSTEM READY.</span><br>
+            <div class="window-header"><span>CONSOLE_OUT</span><div class="controls"><span class="min"></span></div></div>
+            <div class="window-content" id="log-feed" style="height:100%; overflow-y:auto; font-family:'Courier New'; line-height:1.4;">
+                <span style="color:#0f0">> SYSTEM READY.</span><br>
             </div>
         </div>
-
     </div>
 
     <script>
-        // =========================================
-        // MODULE 1: SOUND ENGINE (Audio Synthesis)
-        // =========================================
+        /* =====================
+           AUDIO ENGINE
+           ===================== */
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        
-        function playSound(type) {
+        function sfx(type) {
             if (audioCtx.state === 'suspended') audioCtx.resume();
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-
-            if (type === 'hover') {
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(400, audioCtx.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(800, audioCtx.currentTime + 0.05);
-                gain.gain.setValueAtTime(0.02, audioCtx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
-                osc.start();
-                osc.stop(audioCtx.currentTime + 0.05);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            
+            const now = audioCtx.currentTime;
+            if (type === 'boot') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(50, now);
+                osc.frequency.linearRampToValueAtTime(800, now + 1);
+                gain.gain.setValueAtTime(0, now);
+                gain.gain.linearRampToValueAtTime(0.1, now + 0.5);
+                gain.gain.linearRampToValueAtTime(0, now + 2);
+                osc.start(); osc.stop(now + 2);
             } else if (type === 'click') {
                 osc.type = 'square';
-                osc.frequency.setValueAtTime(200, audioCtx.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.1);
-                gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
-                osc.start();
-                osc.stop(audioCtx.currentTime + 0.1);
-            } else if (type === 'boot') {
-                osc.type = 'sawtooth';
-                osc.frequency.setValueAtTime(100, audioCtx.currentTime);
-                osc.frequency.linearRampToValueAtTime(600, audioCtx.currentTime + 1.5);
-                gain.gain.setValueAtTime(0, audioCtx.currentTime);
-                gain.gain.linearRampToValueAtTime(0.1, audioCtx.currentTime + 0.5);
-                gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 2);
-                osc.start();
-                osc.stop(audioCtx.currentTime + 2);
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.exponentialRampToValueAtTime(100, now + 0.1);
+                gain.gain.setValueAtTime(0.05, now);
+                gain.gain.linearRampToValueAtTime(0, now + 0.1);
+                osc.start(); osc.stop(now + 0.1);
             }
         }
 
-        // Attach sounds to buttons
-        document.querySelectorAll('button').forEach(b => {
-            b.addEventListener('mouseenter', () => playSound('hover'));
-            b.addEventListener('mousedown', () => playSound('click'));
-        });
-
-        // =========================================
-        // MODULE 2: BOOT SEQUENCE
-        // =========================================
-        const bootLines = [
-            "KRATOS BIOS v4.0.12 - (c) 2025 Kratos Industries",
-            "Initializing Memory...............OK",
-            "Checking GPU Drivers..............OK",
-            "Loading WebGPU API................FOUND",
-            "Mounting Virtual File System......OK",
-            "Establishing Secure Handshake.....OK",
-            "Decrypting User Interface.........DONE",
-            "WELCOME, COMMANDER."
-        ];
-
-        async function runBoot() {
-            playSound('boot');
+        /* =====================
+           BOOT SEQUENCE
+           ===================== */
+        window.onload = async () => {
+            const lines = [
+                "KRATOS KERNEL v5.0 loading...",
+                "Mounting File System... OK",
+                "Checking WebGPU Support... FOUND",
+                "Initializing Neural Interface... DONE",
+                "WELCOME COMMANDER."
+            ];
             const screen = document.getElementById('boot-screen');
             
-            for (let i = 0; i < bootLines.length; i++) {
-                const line = document.createElement('div');
-                line.className = 'boot-line';
-                line.innerText = bootLines[i];
-                screen.appendChild(line);
-                
-                // Random typing delay
-                await new Promise(r => setTimeout(r, Math.random() * 300 + 100));
-                line.style.opacity = 1;
-            }
+            // Try to play sound (might be blocked on mobile until tap, handled gracefully)
+            try { sfx('boot'); } catch(e){}
 
+            for(let line of lines) {
+                const div = document.createElement('div');
+                div.className = 'boot-line';
+                div.innerText = line;
+                screen.appendChild(div);
+                await new Promise(r => setTimeout(r, 200));
+                div.style.opacity = 1;
+            }
             await new Promise(r => setTimeout(r, 800));
-            screen.style.transition = "opacity 1s";
             screen.style.opacity = 0;
             setTimeout(() => {
                 screen.style.display = 'none';
-                document.getElementById('ui-layer').style.display = 'block';
-                init3D(); // Start the 3D Engine only after boot
+                document.getElementById('ui-layer').style.display = window.innerWidth > 768 ? 'block' : 'flex'; // Block for desktop, Flex for mobile
+                init3D();
+            }, 1000);
+        };
+
+        /* =====================
+           3D BACKGROUND
+           ===================== */
+        function init3D() {
+            const container = document.getElementById('world');
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+            camera.position.z = 25;
+            
+            const renderer = new THREE.WebGLRenderer({alpha:true, antialias:true});
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            container.appendChild(renderer.domElement);
+
+            // Globe
+            const geo = new THREE.IcosahedronGeometry(10, 2);
+            const mat = new THREE.MeshBasicMaterial({color: 0x00ffcc, wireframe: true, transparent: true, opacity: 0.15});
+            const globe = new THREE.Mesh(geo, mat);
+            scene.add(globe);
+
+            // Particles
+            const pGeo = new THREE.BufferGeometry();
+            const pCount = 600;
+            const pPos = new Float32Array(pCount*3);
+            for(let i=0; i<pCount*3; i++) pPos[i] = (Math.random()-0.5)*70;
+            pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+            const pMat = new THREE.PointsMaterial({size:0.1, color:0x00ffcc});
+            const particles = new THREE.Points(pGeo, pMat);
+            scene.add(particles);
+
+            function animate() {
+                requestAnimationFrame(animate);
+                globe.rotation.y += 0.001;
+                particles.rotation.y -= 0.0005;
+                renderer.render(scene, camera);
+            }
+            animate();
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth/window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                // Fix UI layout on resize
+                if(window.innerWidth > 768) document.getElementById('ui-layer').style.display = 'block';
+                else document.getElementById('ui-layer').style.display = 'flex';
+            });
+        }
+
+        /* =====================
+           DRAGGABLE WINDOWS (Desktop Only)
+           ===================== */
+        if (window.innerWidth > 768) {
+            document.querySelectorAll('.window-header').forEach(hdr => {
+                hdr.addEventListener('mousedown', e => {
+                    const win = hdr.parentElement;
+                    const shiftX = e.clientX - win.getBoundingClientRect().left;
+                    const shiftY = e.clientY - win.getBoundingClientRect().top;
+                    
+                    // Z-Index Management
+                    document.querySelectorAll('.window').forEach(w => w.style.zIndex = 10);
+                    win.style.zIndex = 100;
+
+                    function moveAt(px, py) {
+                        win.style.left = px - shiftX + 'px';
+                        win.style.top = py - shiftY + 'px';
+                    }
+                    function onMove(ev) { moveAt(ev.pageX, ev.pageY); }
+                    
+                    document.addEventListener('mousemove', onMove);
+                    win.onmouseup = () => {
+                        document.removeEventListener('mousemove', onMove);
+                        win.onmouseup = null;
+                    };
+                });
+            });
+        }
+
+        /* =====================
+           MINING LOGIC
+           ===================== */
+        const logBox = document.getElementById('log-feed');
+        function log(msg, type="INFO") {
+            const col = type=="ERR"?"red":(type=="SUCCESS"?"lime":"#00ccff");
+            logBox.innerHTML += `<div><span style="color:#666">[${new Date().toLocaleTimeString('en-GB')}]</span> <span style="color:${col}">${type}</span> ${msg}</div>`;
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+
+        let isConn = false;
+        let serverRange = 0;
+
+        function initSystem() {
+            sfx('click');
+            const btn = document.getElementById('btn-init');
+            btn.disabled = true;
+            btn.innerText = "HANDSHAKE...";
+            document.getElementById('conn-status').innerText = "CONNECTING";
+            document.getElementById('conn-status').style.color = "yellow";
+            
+            setTimeout(() => {
+                isConn = true;
+                btn.style.display = "none";
+                document.getElementById('btn-req').disabled = false;
+                document.getElementById('conn-status').innerText = "ONLINE";
+                document.getElementById('conn-status').style.color = "lime";
+                
+                if(navigator.gpu) {
+                    document.getElementById('gpu-status').innerText = "READY";
+                    document.getElementById('gpu-status').style.color = "lime";
+                    log("WebGPU Adapter Mounted.", "SYS");
+                } else {
+                    document.getElementById('gpu-status').innerText = "MISSING";
+                    document.getElementById('gpu-status').style.color = "red";
+                    log("WebGPU Not Found. Mode: Simulation.", "WARN");
+                }
             }, 1000);
         }
 
-        window.onload = runBoot;
-
-        // =========================================
-        // MODULE 3: THE 3D ENGINE (Three.js)
-        // =========================================
-        let scene, camera, renderer, globe, particles;
-
-        function init3D() {
-            const container = document.getElementById('world');
-            scene = new THREE.Scene();
-            // Fog for depth
-            scene.fog = new THREE.FogExp2(0x000000, 0.02);
-
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.z = 20;
-
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(window.devicePixelRatio);
-            container.appendChild(renderer.domElement);
-
-            // 1. THE CORE (Icosahedron)
-            const geometry = new THREE.IcosahedronGeometry(8, 2);
-            const material = new THREE.MeshBasicMaterial({ 
-                color: 0x00ffcc, 
-                wireframe: true, 
-                transparent: true, 
-                opacity: 0.1 
-            });
-            globe = new THREE.Mesh(geometry, material);
-            scene.add(globe);
-
-            // 2. INNER CORE (Solid Glow)
-            const innerGeo = new THREE.IcosahedronGeometry(6, 1);
-            const innerMat = new THREE.MeshBasicMaterial({ color: 0x005544, wireframe: true, transparent: true, opacity: 0.5 });
-            const innerGlobe = new THREE.Mesh(innerGeo, innerMat);
-            scene.add(innerGlobe);
-
-            // 3. DATA PARTICLES
-            const particlesGeo = new THREE.BufferGeometry();
-            const count = 1000;
-            const pos = new Float32Array(count * 3);
-            for(let i=0; i<count*3; i++) {
-                pos[i] = (Math.random() - 0.5) * 60;
-            }
-            particlesGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-            const particlesMat = new THREE.PointsMaterial({ size: 0.15, color: 0x00ffcc });
-            particles = new THREE.Points(particlesGeo, particlesMat);
-            scene.add(particles);
-
-            // Animation Loop
-            const animate = function () {
-                requestAnimationFrame(animate);
-                
-                globe.rotation.y += 0.002;
-                innerGlobe.rotation.y -= 0.004;
-                innerGlobe.rotation.x += 0.002;
-                
-                particles.rotation.y += 0.0005;
-
-                // Subtle Camera movement (Breathing effect)
-                const time = Date.now() * 0.0005;
-                camera.position.y = Math.sin(time) * 2;
-                camera.lookAt(0, 0, 0);
-
-                renderer.render(scene, camera);
-                TWEEN.update();
-            };
-
-            animate();
-
-            // Handle Resize
-            window.addEventListener('resize', () => {
-                camera.aspect = window.innerWidth / window.innerHeight;
-                camera.updateProjectionMatrix();
-                renderer.setSize(window.innerWidth, window.innerHeight);
-            });
-        }
-
-        // =========================================
-        // MODULE 4: WINDOW DRAGGING LOGIC
-        // =========================================
-        document.querySelectorAll('.window-header').forEach(header => {
-            header.addEventListener('mousedown', (e) => {
-                const windowEl = header.parentElement;
-                let shiftX = e.clientX - windowEl.getBoundingClientRect().left;
-                let shiftY = e.clientY - windowEl.getBoundingClientRect().top;
-                
-                // Bring to front
-                document.querySelectorAll('.window').forEach(w => w.style.zIndex = 1);
-                windowEl.style.zIndex = 10;
-
-                function moveAt(pageX, pageY) {
-                    windowEl.style.left = pageX - shiftX + 'px';
-                    windowEl.style.top = pageY - shiftY + 'px';
-                }
-
-                function onMouseMove(event) {
-                    moveAt(event.pageX, event.pageY);
-                }
-
-                document.addEventListener('mousemove', onMouseMove);
-
-                windowEl.onmouseup = function() {
-                    document.removeEventListener('mousemove', onMouseMove);
-                    windowEl.onmouseup = null;
-                };
-            });
-        });
-
-        // =========================================
-        // MODULE 5: MINING LOGIC (The WebGPU Core)
-        // =========================================
-        const logger = document.getElementById('log-feed');
-        function log(msg, type="INFO") {
-            const time = new Date().toLocaleTimeString('en-US', {hour12: false});
-            const color = type === "SUCCESS" ? "#0f0" : (type === "ERR" ? "red" : "#00ccff");
-            const div = document.createElement('div');
-            div.innerHTML = `<span style="color:#666">[${time}]</span> <span style="color:${color}">[${type}]</span> ${msg}`;
-            logger.appendChild(div);
-            logger.scrollTop = logger.scrollHeight;
-        }
-
-        // --- SIMULATED SERVER ---
-        const Server = {
-            range: 0,
-            getJob: async () => {
-                return new Promise(r => setTimeout(() => {
-                    const job = { start: Server.range, end: Server.range + 1000000 };
-                    Server.range += 1000000;
-                    r(job);
-                }, 500));
-            }
-        };
-
-        // --- WGSL SHADER CODE ---
-        const shaderCode = `
-            @group(0) @binding(0) var<storage, read_write> out: array<u32>;
-            @group(0) @binding(1) var<storage, read_write> params: array<u32>;
-            fn hash(k: u32) -> u32 {
-                var h = k; h ^= h >> 16; h *= 0x85ebca6bu; h ^= h >> 13; h *= 0xc2b2ae35u; h ^= h >> 16; return h;
-            }
-            @compute @workgroup_size(64)
-            fn main(@builtin(global_invocation_id) id : vec3<u32>) {
-                let idx = id.x + params[0];
-                if ((hash(idx) % 10000u) == 7777u) { out[0] = 1u; out[1] = idx; }
-            }
-        `;
-
-        // UI Variables
-        let isConnected = false;
-        const btnInit = document.getElementById('btn-init');
-        const btnReq = document.getElementById('btn-req');
-        const statusEl = document.getElementById('conn-status');
-        const gpuStatus = document.getElementById('gpu-status');
-        const hashEl = document.getElementById('hash-big');
-        const progBar = document.getElementById('progress-bar');
-
-        // Start Up
-        function startSystem() {
-            btnInit.disabled = true;
-            log("Initiating Secure Handshake...", "NET");
-            statusEl.innerText = "NEGOTIATING...";
-            statusEl.style.color = "yellow";
-            
-            setTimeout(() => {
-                isConnected = true;
-                statusEl.innerText = "CONNECTED (SECURE)";
-                statusEl.style.color = "#00ff00";
-                statusEl.classList.add("blink");
-                btnInit.style.display = 'none';
-                btnReq.disabled = false;
-                
-                // GPU Check
-                if (navigator.gpu) {
-                    navigator.gpu.requestAdapter().then(adapter => {
-                        const info = adapter.info; // New Chrome API
-                        gpuStatus.innerText = "ACTIVE";
-                        gpuStatus.style.color = "#00ff00";
-                        log(`GPU Mounted: ${info ? info.device : 'Generic WebGPU Adapter'}`, "SYS");
-                    });
-                } else {
-                    gpuStatus.innerText = "NOT FOUND";
-                    gpuStatus.style.color = "red";
-                    log("CRITICAL: WebGPU not supported on this terminal.", "ERR");
-                }
-            }, 1500);
-        }
-
-        // Mining Loop
         async function requestBatch() {
-            if (!isConnected) return;
+            if(!isConn) return;
+            sfx('click');
+            const btn = document.getElementById('btn-req');
+            const bar = document.getElementById('progress-bar');
             
-            btnReq.disabled = true;
-            btnReq.innerText = "PROCESSING...";
-            log("Requesting computation batch...", "NET");
+            btn.disabled = true;
+            btn.innerText = "MINING...";
             
-            const job = await Server.getJob();
-            log(`Received Batch ID: ${job.start} - ${job.end}`, "JOB");
-            document.getElementById('batch-progress').innerText = `BATCH: ${job.start} - ${job.end}`;
+            // SIMULATE SERVER FETCH
+            log("Requesting Batch...", "NET");
+            await new Promise(r => setTimeout(r, 500));
+            const rangeStart = serverRange;
+            const rangeEnd = serverRange + 1000000;
+            serverRange += 1000000;
+            
+            document.getElementById('batch-id').innerText = `BATCH: ${rangeStart}-${rangeEnd}`;
+            log(`Received Job: ${rangeStart}`, "JOB");
 
-            // Reset UI
-            progBar.style.width = "0%";
-            let progress = 0;
-            const simProgress = setInterval(() => {
-                progress += 5;
-                progBar.style.width = progress + "%";
-                if(progress >= 100) clearInterval(simProgress);
-            }, 50);
-
+            // EXECUTE (WebGPU)
             try {
-                if (!navigator.gpu) throw new Error("No GPU");
-
+                if(!navigator.gpu) throw new Error("No GPU");
                 const adapter = await navigator.gpu.requestAdapter();
                 const device = await adapter.requestDevice();
-
-                // WebGPU Buffers
-                const gpuBuf = device.createBuffer({ size: 12, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
-                const readBuf = device.createBuffer({ size: 12, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
-                const paramBuf = device.createBuffer({ size: 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
-                device.queue.writeBuffer(paramBuf, 0, new Uint32Array([job.start]));
-
-                const module = device.createShaderModule({ code: shaderCode });
-                const pipeline = device.createComputePipeline({ layout: 'auto', compute: { module, entryPoint: 'main' } });
-                const bindGroup = device.createBindGroup({ layout: pipeline.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: gpuBuf }}, { binding: 1, resource: { buffer: paramBuf }}] });
-
-                const tStart = performance.now();
                 
+                // Shader
+                const shader = `
+                    @group(0) @binding(0) var<storage, read_write> out: array<u32>;
+                    @group(0) @binding(1) var<storage, read_write> p: array<u32>;
+                    fn hash(k:u32)->u32{var h=k;h^=h>>16;h*=0x85ebca6bu;h^=h>>13;h*=0xc2b2ae35u;h^=h>>16;return h;}
+                    @compute @workgroup_size(64) fn main(@builtin(global_invocation_id) id:vec3<u32>){
+                        let x=id.x+p[0]; if((hash(x)%10000u)==7777u){out[0]=1u;out[1]=x;}
+                    }
+                `;
+                
+                // Buffers
+                const gpuBuf = device.createBuffer({size:12, usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST});
+                const readBuf = device.createBuffer({size:12, usage:GPUBufferUsage.MAP_READ|GPUBufferUsage.COPY_DST});
+                const paramBuf = device.createBuffer({size:4, usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
+                device.queue.writeBuffer(paramBuf, 0, new Uint32Array([rangeStart]));
+
+                const module = device.createShaderModule({code:shader});
+                const pipe = device.createComputePipeline({layout:'auto', compute:{module, entryPoint:'main'}});
+                const group = device.createBindGroup({layout:pipe.getBindGroupLayout(0), entries:[{binding:0, resource:{buffer:gpuBuf}},{binding:1, resource:{buffer:paramBuf}}]});
+
+                const t0 = performance.now();
                 const enc = device.createCommandEncoder();
                 const pass = enc.beginComputePass();
-                pass.setPipeline(pipeline); pass.setBindGroup(0, bindGroup); pass.dispatchWorkgroups(Math.ceil(1000000 / 64)); pass.end();
+                pass.setPipeline(pipe); pass.setBindGroup(0, group);
+                pass.dispatchWorkgroups(Math.ceil(1000000/64)); pass.end();
                 enc.copyBufferToBuffer(gpuBuf, 0, readBuf, 0, 12);
                 device.queue.submit([enc.finish()]);
 
+                // Fake Progress Bar Animation while GPU works
+                bar.style.width = "50%";
+                
                 await readBuf.mapAsync(GPUMapMode.READ);
                 const res = new Uint32Array(readBuf.getMappedRange());
-                const tEnd = performance.now();
-                
-                // Update Hashrate UI
-                const mhs = (1 / ((tEnd - tStart)/1000)).toFixed(2);
-                hashEl.innerText = mhs;
+                const t1 = performance.now();
+                bar.style.width = "100%";
 
-                // Zoom effect on globe on completion
-                new TWEEN.Tween(globe.scale).to({ x: 1.2, y: 1.2, z: 1.2 }, 200).yoyo(true).repeat(1).start();
+                const mhs = (1 / ((t1-t0)/1000)).toFixed(2);
+                document.getElementById('hash-big').innerText = mhs;
 
-                if (res[0] === 1) {
-                    log(`>>> GOLDEN NONCE FOUND: ${res[1]} <<<`, "SUCCESS");
-                    playSound('boot'); // Success sound
-                    btnReq.innerText = "SUBMIT & NEXT";
+                if(res[0]===1) {
+                    log(`>>> GOLDEN NONCE: ${res[1]} <<<`, "SUCCESS");
+                    btn.innerText = "SUBMIT & NEXT";
                 } else {
-                    log("Batch cleared. No solution.", "INFO");
-                    btnReq.innerText = "REQUEST NEXT BATCH";
+                    log("Batch Clear.", "INFO");
+                    btn.innerText = "NEXT BATCH";
                 }
-                
                 readBuf.unmap();
-                btnReq.disabled = false;
 
-            } catch (e) {
-                log(e.message, "ERR");
-                btnReq.disabled = false;
-                btnReq.innerText = "RETRY";
+            } catch(e) {
+                // Fallback for non-GPU devices (Simulation)
+                log("GPU Error / Fallback: " + e.message, "WARN");
+                await new Promise(r => setTimeout(r, 1000));
+                bar.style.width = "100%";
+                document.getElementById('hash-big').innerText = (Math.random()*10+5).toFixed(2);
+                log("Batch Clear (Simulated).", "INFO");
+                btn.innerText = "NEXT BATCH";
             }
+            
+            btn.disabled = false;
         }
 
-        // =========================================
-        // MODULE 6: LIVE CHARTS (Canvas)
-        // =========================================
+        /* =====================
+           CHARTS
+           ===================== */
         function drawChart(id) {
             const cvs = document.getElementById(id);
             const ctx = cvs.getContext('2d');
-            cvs.width = cvs.offsetWidth;
-            cvs.height = cvs.offsetHeight;
-            
-            let data = new Array(50).fill(0);
+            let data = new Array(30).fill(0);
             
             function loop() {
-                // Shift data
-                data.shift();
-                data.push(Math.random() * 50 + (isConnected ? 40 : 10)); // Higher values if connected
-
-                ctx.clearRect(0, 0, cvs.width, cvs.height);
-                ctx.beginPath();
-                ctx.strokeStyle = '#00ffcc';
-                ctx.lineWidth = 2;
+                cvs.width = cvs.parentElement.offsetWidth - 30; // Responsive width
+                cvs.height = 80;
                 
+                data.push(Math.random() * (isConn?50:5));
+                data.shift();
+                
+                ctx.clearRect(0,0,cvs.width,cvs.height);
+                ctx.beginPath();
+                ctx.strokeStyle = "#00ffcc";
+                ctx.lineWidth = 1.5;
                 for(let i=0; i<data.length; i++) {
-                    const x = (i / data.length) * cvs.width;
-                    const y = cvs.height - (data[i] / 100) * cvs.height;
-                    if(i===0) ctx.moveTo(x, y);
-                    else ctx.lineTo(x, y);
+                    const x = (i/(data.length-1)) * cvs.width;
+                    const y = cvs.height - (data[i]/100)*cvs.height;
+                    if(i==0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
                 }
                 ctx.stroke();
-
-                // Fill
-                ctx.lineTo(cvs.width, cvs.height);
-                ctx.lineTo(0, cvs.height);
-                ctx.fillStyle = 'rgba(0, 255, 204, 0.2)';
-                ctx.fill();
-
                 requestAnimationFrame(loop);
             }
             loop();
         }
-
         drawChart('chart-load');
         drawChart('chart-mem');
 
