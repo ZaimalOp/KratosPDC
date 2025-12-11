@@ -3,195 +3,499 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KRATOS // GLOBAL GRID</title>
+    <title>KRATOS // ENTERPRISE GRID</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/18.6.4/tween.umd.js"></script>
+
     <style>
-        /* --- CYBERPUNK CSS --- */
-        body { margin: 0; background: #000; overflow: hidden; font-family: 'Courier New', monospace; color: #0f0; }
-        
-        /* 3D Background Container */
-        #globe-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; }
-        
-        /* Glass HUD Overlay */
-        .hud-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 20px; box-sizing: border-box; background: radial-gradient(circle, transparent 60%, #000 150%); }
-
-        /* Scanline Effect */
-        .scanlines { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%); background-size: 100% 4px; pointer-events: none; z-index: 5; opacity: 0.6; }
-
-        /* UI Panels */
-        .panel { 
-            background: rgba(0, 20, 0, 0.7); 
-            border: 1px solid #00ff00; 
-            backdrop-filter: blur(4px); 
-            padding: 15px; 
-            pointer-events: auto; 
-            box-shadow: 0 0 15px rgba(0, 255, 0, 0.2);
-            text-shadow: 0 0 5px #00ff00;
-            max-width: 400px;
+        /* =========================================
+           SECTION 1: CORE STYLES & CRT EFFECTS
+           ========================================= */
+        :root {
+            --primary: #00ffcc;
+            --secondary: #005544;
+            --bg: #050505;
+            --glass: rgba(0, 20, 10, 0.65);
+            --border: 1px solid rgba(0, 255, 204, 0.3);
+            --shadow: 0 0 15px rgba(0, 255, 204, 0.1);
         }
 
-        .header { border-bottom: 1px solid #00ff00; padding-bottom: 5px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: flex-end; }
-        h1 { margin: 0; font-size: 24px; letter-spacing: 2px; }
-        .sub { font-size: 10px; color: #88ff88; }
-        
-        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
-        .stat-box { background: rgba(0, 50, 0, 0.5); padding: 10px; border: 1px solid #004400; text-align: center; }
-        .stat-val { font-size: 18px; font-weight: bold; color: #fff; }
-        .stat-label { font-size: 9px; color: #0f0; margin-top: 2px; }
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+            font-family: 'Consolas', 'Monaco', monospace;
+            color: var(--primary);
+            user-select: none;
+        }
 
-        /* Action Button */
-        #btn-main {
-            width: 100%; padding: 15px; margin-top: 15px;
-            background: #000; border: 1px solid #00ff00; color: #00ff00;
-            font-family: 'Courier New', monospace; font-weight: bold; font-size: 16px;
-            cursor: pointer; transition: 0.2s; text-transform: uppercase;
-            box-shadow: 0 0 10px rgba(0, 255, 0, 0.1);
+        /* The 3D Canvas Layer */
+        #world {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            z-index: 0;
         }
-        #btn-main:hover { background: #00ff00; color: #000; box-shadow: 0 0 20px #00ff00; }
-        #btn-main:disabled { border-color: #555; color: #555; background: #111; box-shadow: none; cursor: not-allowed; }
 
-        /* Log Terminal */
-        .terminal {
-            position: absolute; bottom: 20px; right: 20px;
-            width: 300px; height: 150px;
-            background: rgba(0, 0, 0, 0.8); border: 1px solid #00ff00;
-            padding: 10px; font-size: 10px; overflow-y: hidden;
-            pointer-events: auto;
-            display: flex; flex-direction: column; justify-content: flex-end;
+        /* CRT Scanline Overlay */
+        #scanlines {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%);
+            background-size: 100% 4px;
+            z-index: 999;
+            pointer-events: none;
+            opacity: 0.7;
         }
-        .log-line { margin-bottom: 2px; opacity: 0.8; }
+
+        /* Vignette & CRT Curve */
+        #vignette {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background: radial-gradient(circle, transparent 60%, black 100%);
+            z-index: 998;
+            pointer-events: none;
+        }
+
+        /* =========================================
+           SECTION 2: BOOT SEQUENCE
+           ========================================= */
+        #boot-screen {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: #000;
+            z-index: 2000;
+            padding: 40px;
+            box-sizing: border-box;
+            font-size: 14px;
+            color: var(--primary);
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+        }
+
+        .boot-line {
+            opacity: 0;
+            margin-bottom: 5px;
+        }
+
+        /* =========================================
+           SECTION 3: WINDOW MANAGER UI
+           ========================================= */
+        .window {
+            position: absolute;
+            background: var(--glass);
+            border: var(--border);
+            backdrop-filter: blur(10px);
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: opacity 0.2s, transform 0.2s;
+            border-radius: 4px;
+        }
+
+        .window-header {
+            background: rgba(0, 50, 40, 0.8);
+            padding: 8px 10px;
+            font-size: 12px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            cursor: grab;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: var(--border);
+        }
+
+        .window-header:active { cursor: grabbing; }
+
+        .controls span {
+            display: inline-block;
+            width: 10px; height: 10px;
+            background: #333;
+            border-radius: 50%;
+            margin-left: 5px;
+            cursor: pointer;
+        }
+        .controls .close { background: #ff4444; }
+        .controls .min { background: #ffcc00; }
+
+        .window-content {
+            padding: 15px;
+            flex-grow: 1;
+            overflow-y: auto;
+            color: #ccffee;
+            font-size: 12px;
+        }
+
+        /* Specific Window Layouts */
+        #win-miner { top: 100px; left: 50px; width: 400px; height: 500px; z-index: 10; }
+        #win-stats { top: 100px; right: 50px; width: 350px; height: 300px; z-index: 10; }
+        #win-log { bottom: 50px; left: 50px; width: 600px; height: 200px; z-index: 9; }
         
-        /* Mobile Layout */
-        @media (max-width: 600px) {
-            .hud-layer { padding: 10px; }
-            .panel { width: 100%; max-width: none; }
-            .terminal { width: 100%; height: 100px; bottom: 0; right: 0; left: 0; border: none; border-top: 1px solid #0f0; }
+        /* Interactive Elements */
+        button.cyber-btn {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--primary);
+            color: var(--primary);
+            padding: 10px 20px;
+            width: 100%;
+            cursor: pointer;
+            font-family: inherit;
+            font-weight: bold;
+            text-transform: uppercase;
+            transition: 0.2s;
+            margin-top: 10px;
         }
+        button.cyber-btn:hover {
+            background: var(--primary);
+            color: #000;
+            box-shadow: 0 0 15px var(--primary);
+        }
+        button.cyber-btn:disabled {
+            border-color: #555;
+            color: #555;
+            background: transparent;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        /* Canvas Charts */
+        canvas.chart {
+            width: 100%;
+            height: 100px;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid #004433;
+            margin-top: 10px;
+        }
+
+        /* Progress Bars */
+        .progress-container {
+            width: 100%; height: 6px;
+            background: #111;
+            margin-top: 5px;
+            border: 1px solid #333;
+        }
+        .progress-bar {
+            width: 0%; height: 100%;
+            background: var(--primary);
+            box-shadow: 0 0 10px var(--primary);
+            transition: width 0.1s;
+        }
+
+        /* Status Indicators */
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            border-bottom: 1px dashed #004433;
+            padding-bottom: 5px;
+        }
+        .blink { animation: blinker 1s linear infinite; }
+        @keyframes blinker { 50% { opacity: 0; } }
+
     </style>
 </head>
 <body>
 
-    <div id="globe-container"></div>
-    <div class="scanlines"></div>
+    <div id="boot-screen"></div>
+    <div id="world"></div>
+    <div id="scanlines"></div>
+    <div id="vignette"></div>
 
-    <div class="hud-layer">
+    <div id="ui-layer" style="display: none;">
         
-        <div class="panel">
-            <div class="header">
-                <div>
-                    <h1>KRATOS</h1>
-                    <span class="sub">DISTRIBUTED GPU GRID // v3.0</span>
-                </div>
-                <div id="status-ind" style="width:10px; height:10px; background:red; box-shadow: 0 0 5px red;"></div>
+        <div id="win-miner" class="window">
+            <div class="window-header">
+                <span>KRATOS_MINER_v4.exe</span>
+                <div class="controls"><span class="min"></span><span class="close"></span></div>
             </div>
-            
-            <div style="font-size: 11px; margin-bottom: 5px;">NODE STATUS: <span id="net-status" style="color:red">OFFLINE</span></div>
-            
-            <div class="stat-grid">
-                <div class="stat-box">
-                    <div id="batch-display" class="stat-val">-</div>
-                    <div class="stat-label">BATCH ID</div>
+            <div class="window-content">
+                <div class="status-row">
+                    <span>CONNECTION STATUS</span>
+                    <span id="conn-status" style="color: red;">DISCONNECTED</span>
                 </div>
-                <div class="stat-box">
-                    <div id="hash-rate" class="stat-val">0 MH/s</div>
-                    <div class="stat-label">HASH POWER</div>
+                <div class="status-row">
+                    <span>GPU DRIVER</span>
+                    <span id="gpu-status">WAITING...</span>
                 </div>
-            </div>
+                
+                <br>
+                <div style="text-align: center; border: 1px solid #004433; padding: 20px; margin-bottom: 10px;">
+                    <h1 style="margin: 0; font-size: 32px;" id="hash-big">0.00</h1>
+                    <small>MH/s</small>
+                </div>
 
-            <button id="btn-main">INITIALIZE UPLINK</button>
+                <div class="progress-container">
+                    <div id="progress-bar" class="progress-bar"></div>
+                </div>
+                <div style="font-size: 10px; text-align: right; margin-top: 2px;" id="batch-progress">BATCH: IDLE</div>
+
+                <br>
+                <button id="btn-init" class="cyber-btn" onclick="startSystem()">INITIALIZE UPLINK</button>
+                <button id="btn-req" class="cyber-btn" disabled onclick="requestBatch()">REQUEST BATCH</button>
+            </div>
         </div>
 
-        <div class="terminal" id="logs">
-            <div class="log-line">> SYSTEM BOOT SEQUENCE INITIATED...</div>
-            <div class="log-line">> WAITING FOR USER AUTH...</div>
+        <div id="win-stats" class="window">
+            <div class="window-header">
+                <span>TELEMETRY_MONITOR</span>
+                <div class="controls"><span class="min"></span><span class="close"></span></div>
+            </div>
+            <div class="window-content">
+                <div>CORE LOAD:</div>
+                <canvas id="chart-load" class="chart"></canvas>
+                <br><br>
+                <div>MEMORY BUFFER:</div>
+                <canvas id="chart-mem" class="chart"></canvas>
+                <div style="margin-top: 10px; font-size: 10px; color: #aaa;">
+                    > UPLINK: STABLE<br>
+                    > LATENCY: 24ms<br>
+                    > PEERS: 1,402 ACTIVE
+                </div>
+            </div>
+        </div>
+
+        <div id="win-log" class="window">
+            <div class="window-header">
+                <span>TERMINAL_OUTPUT</span>
+                <div class="controls"><span class="min"></span><span class="close"></span></div>
+            </div>
+            <div class="window-content" id="log-feed" style="font-family: 'Courier New'; font-size: 11px; line-height: 1.4;">
+                <span style="color: #008800;">> SYSTEM READY.</span><br>
+            </div>
         </div>
 
     </div>
 
     <script>
-        // --- 1. VISUALS: THREE.JS GLOBE ---
-        const initGlobe = () => {
-            const container = document.getElementById('globe-container');
-            const scene = new THREE.Scene();
-            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+        // =========================================
+        // MODULE 1: SOUND ENGINE (Audio Synthesis)
+        // =========================================
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            if (type === 'hover') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(800, audioCtx.currentTime + 0.05);
+                gain.gain.setValueAtTime(0.02, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.05);
+            } else if (type === 'click') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(200, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.1);
+            } else if (type === 'boot') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(100, audioCtx.currentTime);
+                osc.frequency.linearRampToValueAtTime(600, audioCtx.currentTime + 1.5);
+                gain.gain.setValueAtTime(0, audioCtx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.1, audioCtx.currentTime + 0.5);
+                gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 2);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 2);
+            }
+        }
+
+        // Attach sounds to buttons
+        document.querySelectorAll('button').forEach(b => {
+            b.addEventListener('mouseenter', () => playSound('hover'));
+            b.addEventListener('mousedown', () => playSound('click'));
+        });
+
+        // =========================================
+        // MODULE 2: BOOT SEQUENCE
+        // =========================================
+        const bootLines = [
+            "KRATOS BIOS v4.0.12 - (c) 2025 Kratos Industries",
+            "Initializing Memory...............OK",
+            "Checking GPU Drivers..............OK",
+            "Loading WebGPU API................FOUND",
+            "Mounting Virtual File System......OK",
+            "Establishing Secure Handshake.....OK",
+            "Decrypting User Interface.........DONE",
+            "WELCOME, COMMANDER."
+        ];
+
+        async function runBoot() {
+            playSound('boot');
+            const screen = document.getElementById('boot-screen');
             
+            for (let i = 0; i < bootLines.length; i++) {
+                const line = document.createElement('div');
+                line.className = 'boot-line';
+                line.innerText = bootLines[i];
+                screen.appendChild(line);
+                
+                // Random typing delay
+                await new Promise(r => setTimeout(r, Math.random() * 300 + 100));
+                line.style.opacity = 1;
+            }
+
+            await new Promise(r => setTimeout(r, 800));
+            screen.style.transition = "opacity 1s";
+            screen.style.opacity = 0;
+            setTimeout(() => {
+                screen.style.display = 'none';
+                document.getElementById('ui-layer').style.display = 'block';
+                init3D(); // Start the 3D Engine only after boot
+            }, 1000);
+        }
+
+        window.onload = runBoot;
+
+        // =========================================
+        // MODULE 3: THE 3D ENGINE (Three.js)
+        // =========================================
+        let scene, camera, renderer, globe, particles;
+
+        function init3D() {
+            const container = document.getElementById('world');
+            scene = new THREE.Scene();
+            // Fog for depth
+            scene.fog = new THREE.FogExp2(0x000000, 0.02);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 20;
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
             container.appendChild(renderer.domElement);
 
-            // Wireframe Globe
-            const geometry = new THREE.IcosahedronGeometry(10, 2);
-            const material = new THREE.MeshBasicMaterial({ color: 0x004400, wireframe: true, transparent: true, opacity: 0.3 });
-            const sphere = new THREE.Mesh(geometry, material);
-            scene.add(sphere);
+            // 1. THE CORE (Icosahedron)
+            const geometry = new THREE.IcosahedronGeometry(8, 2);
+            const material = new THREE.MeshBasicMaterial({ 
+                color: 0x00ffcc, 
+                wireframe: true, 
+                transparent: true, 
+                opacity: 0.1 
+            });
+            globe = new THREE.Mesh(geometry, material);
+            scene.add(globe);
 
-            // Particles (Nodes)
-            const particlesGeom = new THREE.BufferGeometry();
-            const particleCount = 200;
-            const posArray = new Float32Array(particleCount * 3);
-            for(let i=0; i < particleCount * 3; i++) {
-                posArray[i] = (Math.random() - 0.5) * 25;
+            // 2. INNER CORE (Solid Glow)
+            const innerGeo = new THREE.IcosahedronGeometry(6, 1);
+            const innerMat = new THREE.MeshBasicMaterial({ color: 0x005544, wireframe: true, transparent: true, opacity: 0.5 });
+            const innerGlobe = new THREE.Mesh(innerGeo, innerMat);
+            scene.add(innerGlobe);
+
+            // 3. DATA PARTICLES
+            const particlesGeo = new THREE.BufferGeometry();
+            const count = 1000;
+            const pos = new Float32Array(count * 3);
+            for(let i=0; i<count*3; i++) {
+                pos[i] = (Math.random() - 0.5) * 60;
             }
-            particlesGeom.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
-            const particlesMat = new THREE.PointsMaterial({ size: 0.1, color: 0x00ff00 });
-            const particles = new THREE.Points(particlesGeom, particlesMat);
+            particlesGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            const particlesMat = new THREE.PointsMaterial({ size: 0.15, color: 0x00ffcc });
+            particles = new THREE.Points(particlesGeo, particlesMat);
             scene.add(particles);
 
-            camera.position.z = 15;
-
             // Animation Loop
-            const animate = () => {
+            const animate = function () {
                 requestAnimationFrame(animate);
-                sphere.rotation.y += 0.002;
-                sphere.rotation.x += 0.001;
-                particles.rotation.y -= 0.0005;
+                
+                globe.rotation.y += 0.002;
+                innerGlobe.rotation.y -= 0.004;
+                innerGlobe.rotation.x += 0.002;
+                
+                particles.rotation.y += 0.0005;
+
+                // Subtle Camera movement (Breathing effect)
+                const time = Date.now() * 0.0005;
+                camera.position.y = Math.sin(time) * 2;
+                camera.lookAt(0, 0, 0);
+
                 renderer.render(scene, camera);
+                TWEEN.update();
             };
+
             animate();
 
-            // Resize Handle
+            // Handle Resize
             window.addEventListener('resize', () => {
                 camera.aspect = window.innerWidth / window.innerHeight;
                 camera.updateProjectionMatrix();
                 renderer.setSize(window.innerWidth, window.innerHeight);
             });
-        };
-        initGlobe();
-
-        // --- 2. LOGIC: SIMULATED MINER ---
-        // (This is your working backend logic grafted into the new UI)
-        
-        const logDiv = document.getElementById('logs');
-        const statusText = document.getElementById('net-status');
-        const statusInd = document.getElementById('status-ind');
-        const btn = document.getElementById('btn-main');
-        const hashDisplay = document.getElementById('hash-rate');
-        const batchDisplay = document.getElementById('batch-display');
-
-        function log(msg) {
-            const line = document.createElement('div');
-            line.className = 'log-line';
-            line.innerHTML = `> ${msg}`;
-            logDiv.appendChild(line);
-            logDiv.scrollTop = logDiv.scrollHeight;
         }
 
-        const VirtualServer = {
-            currentRange: 0,
-            batchSize: 1000000,
-            getJob: async function() {
+        // =========================================
+        // MODULE 4: WINDOW DRAGGING LOGIC
+        // =========================================
+        document.querySelectorAll('.window-header').forEach(header => {
+            header.addEventListener('mousedown', (e) => {
+                const windowEl = header.parentElement;
+                let shiftX = e.clientX - windowEl.getBoundingClientRect().left;
+                let shiftY = e.clientY - windowEl.getBoundingClientRect().top;
+                
+                // Bring to front
+                document.querySelectorAll('.window').forEach(w => w.style.zIndex = 1);
+                windowEl.style.zIndex = 10;
+
+                function moveAt(pageX, pageY) {
+                    windowEl.style.left = pageX - shiftX + 'px';
+                    windowEl.style.top = pageY - shiftY + 'px';
+                }
+
+                function onMouseMove(event) {
+                    moveAt(event.pageX, event.pageY);
+                }
+
+                document.addEventListener('mousemove', onMouseMove);
+
+                windowEl.onmouseup = function() {
+                    document.removeEventListener('mousemove', onMouseMove);
+                    windowEl.onmouseup = null;
+                };
+            });
+        });
+
+        // =========================================
+        // MODULE 5: MINING LOGIC (The WebGPU Core)
+        // =========================================
+        const logger = document.getElementById('log-feed');
+        function log(msg, type="INFO") {
+            const time = new Date().toLocaleTimeString('en-US', {hour12: false});
+            const color = type === "SUCCESS" ? "#0f0" : (type === "ERR" ? "red" : "#00ccff");
+            const div = document.createElement('div');
+            div.innerHTML = `<span style="color:#666">[${time}]</span> <span style="color:${color}">[${type}]</span> ${msg}`;
+            logger.appendChild(div);
+            logger.scrollTop = logger.scrollHeight;
+        }
+
+        // --- SIMULATED SERVER ---
+        const Server = {
+            range: 0,
+            getJob: async () => {
                 return new Promise(r => setTimeout(() => {
-                    const job = { start: this.currentRange, end: this.currentRange + this.batchSize };
-                    this.currentRange += this.batchSize;
+                    const job = { start: Server.range, end: Server.range + 1000000 };
+                    Server.range += 1000000;
                     r(job);
-                }, 400));
-            },
-            submit: async function() { return new Promise(r => setTimeout(r, 200)); }
+                }, 500));
+            }
         };
 
-        // WGSL Shader Code
+        // --- WGSL SHADER CODE ---
         const shaderCode = `
-            @group(0) @binding(0) var<storage, read_write> outBuf: array<u32>;
+            @group(0) @binding(0) var<storage, read_write> out: array<u32>;
             @group(0) @binding(1) var<storage, read_write> params: array<u32>;
             fn hash(k: u32) -> u32 {
                 var h = k; h ^= h >> 16; h *= 0x85ebca6bu; h ^= h >> 13; h *= 0xc2b2ae35u; h ^= h >> 16; return h;
@@ -199,95 +503,168 @@
             @compute @workgroup_size(64)
             fn main(@builtin(global_invocation_id) id : vec3<u32>) {
                 let idx = id.x + params[0];
-                if ((hash(idx) % 10000u) == 7777u) { outBuf[0] = 1u; outBuf[1] = idx; }
+                if ((hash(idx) % 10000u) == 7777u) { out[0] = 1u; out[1] = idx; }
             }
         `;
 
+        // UI Variables
         let isConnected = false;
+        const btnInit = document.getElementById('btn-init');
+        const btnReq = document.getElementById('btn-req');
+        const statusEl = document.getElementById('conn-status');
+        const gpuStatus = document.getElementById('gpu-status');
+        const hashEl = document.getElementById('hash-big');
+        const progBar = document.getElementById('progress-bar');
 
-        btn.addEventListener('click', async () => {
-            if (!isConnected) {
-                // CONNECT SEQUENCE
-                btn.disabled = true;
-                log("ESTABLISHING SECURE CONNECTION...");
-                statusText.innerText = "HANDSHAKE...";
-                statusText.style.color = "yellow";
+        // Start Up
+        function startSystem() {
+            btnInit.disabled = true;
+            log("Initiating Secure Handshake...", "NET");
+            statusEl.innerText = "NEGOTIATING...";
+            statusEl.style.color = "yellow";
+            
+            setTimeout(() => {
+                isConnected = true;
+                statusEl.innerText = "CONNECTED (SECURE)";
+                statusEl.style.color = "#00ff00";
+                statusEl.classList.add("blink");
+                btnInit.style.display = 'none';
+                btnReq.disabled = false;
                 
-                setTimeout(() => {
-                    isConnected = true;
-                    statusText.innerText = "ONLINE";
-                    statusText.style.color = "#00ff00";
-                    statusText.style.textShadow = "0 0 10px #00ff00";
-                    statusInd.style.background = "#00ff00";
-                    statusInd.style.boxShadow = "0 0 10px #00ff00";
-                    btn.innerText = "EXECUTE BATCH";
-                    btn.disabled = false;
-                    btn.style.borderColor = "white";
-                    btn.style.color = "white";
-                    log("CONNECTED TO MAINNET.");
-                }, 1000);
-            } else {
-                // MINE SEQUENCE
-                if (!navigator.gpu) { log("CRITICAL: NO WEBGPU HARDWARE."); return; }
-                
-                btn.disabled = true;
-                btn.innerText = "COMPUTING...";
-                statusText.innerText = "BUSY";
-                statusText.style.color = "magenta";
-                
-                log("Requesting Work Unit...");
-                const job = await VirtualServer.getJob();
-                batchDisplay.innerText = `${(job.start/1000000).toFixed(0)}M`;
-                log(`Received Batch: ${job.start}-${job.end}`);
-
-                try {
-                    const adapter = await navigator.gpu.requestAdapter();
-                    const device = await adapter.requestDevice();
-                    
-                    // Buffers
-                    const gpuBuf = device.createBuffer({ size: 12, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
-                    const readBuf = device.createBuffer({ size: 12, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
-                    const paramBuf = device.createBuffer({ size: 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
-                    device.queue.writeBuffer(paramBuf, 0, new Uint32Array([job.start]));
-
-                    // Pipeline
-                    const module = device.createShaderModule({ code: shaderCode });
-                    const pipeline = device.createComputePipeline({ layout: 'auto', compute: { module, entryPoint: 'main' } });
-                    const bindGroup = device.createBindGroup({ layout: pipeline.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: gpuBuf }}, { binding: 1, resource: { buffer: paramBuf }}] });
-
-                    const start = performance.now();
-                    const enc = device.createCommandEncoder();
-                    const pass = enc.beginComputePass();
-                    pass.setPipeline(pipeline); pass.setBindGroup(0, bindGroup); pass.dispatchWorkgroups(Math.ceil(1000000 / 64)); pass.end();
-                    enc.copyBufferToBuffer(gpuBuf, 0, readBuf, 0, 12);
-                    device.queue.submit([enc.finish()]);
-
-                    await readBuf.mapAsync(GPUMapMode.READ);
-                    const res = new Uint32Array(readBuf.getMappedRange());
-                    const dur = performance.now() - start;
-                    
-                    const mhs = (1 / (dur/1000)).toFixed(2);
-                    hashDisplay.innerText = `${mhs} MH/s`;
-
-                    if (res[0] === 1) {
-                        log(`<span style="color:#fff; background:green;">>>> GOLDEN NONCE: ${res[1]} <<<</span>`);
-                        await VirtualServer.submit();
-                        btn.innerText = "SUBMIT & NEXT";
-                    } else {
-                        log("Batch Clear.");
-                        btn.innerText = "NEXT BATCH";
-                    }
-                    
-                    readBuf.unmap();
-                    btn.disabled = false;
-                    statusText.innerText = "IDLE";
-                    statusText.style.color = "#00ff00";
-
-                } catch (e) {
-                    log("GPU ERR: " + e.message);
+                // GPU Check
+                if (navigator.gpu) {
+                    navigator.gpu.requestAdapter().then(adapter => {
+                        const info = adapter.info; // New Chrome API
+                        gpuStatus.innerText = "ACTIVE";
+                        gpuStatus.style.color = "#00ff00";
+                        log(`GPU Mounted: ${info ? info.device : 'Generic WebGPU Adapter'}`, "SYS");
+                    });
+                } else {
+                    gpuStatus.innerText = "NOT FOUND";
+                    gpuStatus.style.color = "red";
+                    log("CRITICAL: WebGPU not supported on this terminal.", "ERR");
                 }
+            }, 1500);
+        }
+
+        // Mining Loop
+        async function requestBatch() {
+            if (!isConnected) return;
+            
+            btnReq.disabled = true;
+            btnReq.innerText = "PROCESSING...";
+            log("Requesting computation batch...", "NET");
+            
+            const job = await Server.getJob();
+            log(`Received Batch ID: ${job.start} - ${job.end}`, "JOB");
+            document.getElementById('batch-progress').innerText = `BATCH: ${job.start} - ${job.end}`;
+
+            // Reset UI
+            progBar.style.width = "0%";
+            let progress = 0;
+            const simProgress = setInterval(() => {
+                progress += 5;
+                progBar.style.width = progress + "%";
+                if(progress >= 100) clearInterval(simProgress);
+            }, 50);
+
+            try {
+                if (!navigator.gpu) throw new Error("No GPU");
+
+                const adapter = await navigator.gpu.requestAdapter();
+                const device = await adapter.requestDevice();
+
+                // WebGPU Buffers
+                const gpuBuf = device.createBuffer({ size: 12, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
+                const readBuf = device.createBuffer({ size: 12, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+                const paramBuf = device.createBuffer({ size: 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+                device.queue.writeBuffer(paramBuf, 0, new Uint32Array([job.start]));
+
+                const module = device.createShaderModule({ code: shaderCode });
+                const pipeline = device.createComputePipeline({ layout: 'auto', compute: { module, entryPoint: 'main' } });
+                const bindGroup = device.createBindGroup({ layout: pipeline.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: gpuBuf }}, { binding: 1, resource: { buffer: paramBuf }}] });
+
+                const tStart = performance.now();
+                
+                const enc = device.createCommandEncoder();
+                const pass = enc.beginComputePass();
+                pass.setPipeline(pipeline); pass.setBindGroup(0, bindGroup); pass.dispatchWorkgroups(Math.ceil(1000000 / 64)); pass.end();
+                enc.copyBufferToBuffer(gpuBuf, 0, readBuf, 0, 12);
+                device.queue.submit([enc.finish()]);
+
+                await readBuf.mapAsync(GPUMapMode.READ);
+                const res = new Uint32Array(readBuf.getMappedRange());
+                const tEnd = performance.now();
+                
+                // Update Hashrate UI
+                const mhs = (1 / ((tEnd - tStart)/1000)).toFixed(2);
+                hashEl.innerText = mhs;
+
+                // Zoom effect on globe on completion
+                new TWEEN.Tween(globe.scale).to({ x: 1.2, y: 1.2, z: 1.2 }, 200).yoyo(true).repeat(1).start();
+
+                if (res[0] === 1) {
+                    log(`>>> GOLDEN NONCE FOUND: ${res[1]} <<<`, "SUCCESS");
+                    playSound('boot'); // Success sound
+                    btnReq.innerText = "SUBMIT & NEXT";
+                } else {
+                    log("Batch cleared. No solution.", "INFO");
+                    btnReq.innerText = "REQUEST NEXT BATCH";
+                }
+                
+                readBuf.unmap();
+                btnReq.disabled = false;
+
+            } catch (e) {
+                log(e.message, "ERR");
+                btnReq.disabled = false;
+                btnReq.innerText = "RETRY";
             }
-        });
+        }
+
+        // =========================================
+        // MODULE 6: LIVE CHARTS (Canvas)
+        // =========================================
+        function drawChart(id) {
+            const cvs = document.getElementById(id);
+            const ctx = cvs.getContext('2d');
+            cvs.width = cvs.offsetWidth;
+            cvs.height = cvs.offsetHeight;
+            
+            let data = new Array(50).fill(0);
+            
+            function loop() {
+                // Shift data
+                data.shift();
+                data.push(Math.random() * 50 + (isConnected ? 40 : 10)); // Higher values if connected
+
+                ctx.clearRect(0, 0, cvs.width, cvs.height);
+                ctx.beginPath();
+                ctx.strokeStyle = '#00ffcc';
+                ctx.lineWidth = 2;
+                
+                for(let i=0; i<data.length; i++) {
+                    const x = (i / data.length) * cvs.width;
+                    const y = cvs.height - (data[i] / 100) * cvs.height;
+                    if(i===0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+
+                // Fill
+                ctx.lineTo(cvs.width, cvs.height);
+                ctx.lineTo(0, cvs.height);
+                ctx.fillStyle = 'rgba(0, 255, 204, 0.2)';
+                ctx.fill();
+
+                requestAnimationFrame(loop);
+            }
+            loop();
+        }
+
+        drawChart('chart-load');
+        drawChart('chart-mem');
+
     </script>
 </body>
 </html>
